@@ -1,1 +1,2041 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>おしろぐ</title>
+
+  <!-- PWA Settings for iOS / Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="おしろぐ">
+  
+  <link rel="manifest" href="data:application/manifest+json;base64,ewogICJuYW1lIjogIuOBiuOBlOOCjeOBgCIsCiAgInNob3J0X25hbWUiOiAi44GK44GX44KN44GBIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNGRkY4RkMiLAogICJ0aGVtZV9jb2xvciI6ICIjRkZCNkQ5Igp9">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    input, select, textarea {
+      font-size: 16px !important; /* iOS Auto-zoom prevention */
+    }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    .modal-backdrop {
+      background-color: rgba(0, 0, 0, 0.38);
+      backdrop-filter: blur(4px);
+    }
+
+    /* THEME SYSTEM STYLES */
+    /* Pink Theme */
+    body.theme-pink {
+      background-color: #FFF8FC;
+      color: #4A4A4A;
+    }
+    .theme-pink .bg-theme-bg { background-color: #FFF8FC; }
+    .theme-pink .bg-theme-accent { background-color: #FFB6D9; color: #FFFFFF; }
+    .theme-pink .text-theme-primary { color: #E98AB5; }
+    .theme-pink .bg-theme-sub { background-color: #FFF3F8; }
+    .theme-pink .border-theme-border { border-color: #FFE2EF; }
+    .theme-pink .accent-theme { accent-color: #E98AB5; }
+
+    /* Light Blue Theme */
+    body.theme-lightblue {
+      background-color: #F4FAFF;
+      color: #334155;
+    }
+    .theme-lightblue .bg-theme-bg { background-color: #F4FAFF; }
+    .theme-lightblue .bg-theme-accent { background-color: #82C9F4; color: #FFFFFF; }
+    .theme-lightblue .text-theme-primary { color: #4A9ED6; }
+    .theme-lightblue .bg-theme-sub { background-color: #EBF5FF; }
+    .theme-lightblue .border-theme-border { border-color: #D6ECFF; }
+    .theme-lightblue .accent-theme { accent-color: #4A9ED6; }
+
+    /* White (Monochrome) Theme */
+    body.theme-white {
+      background-color: #FFFFFF;
+      color: #18181B;
+    }
+    .theme-white .bg-theme-bg { background-color: #FAFAFA; }
+    .theme-white .bg-theme-accent { background-color: #18181B; color: #FFFFFF; }
+    .theme-white .text-theme-primary { color: #18181B; }
+    .theme-white .bg-theme-sub { background-color: #F4F4F5; }
+    .theme-white .border-theme-border { border-color: #E4E4E7; }
+    .theme-white .accent-theme { accent-color: #18181B; }
+  </style>
+</head>
+<body class="theme-pink antialiased min-h-screen flex flex-col selection:bg-gray-200">
+
+  <div id="app" class="w-full max-w-md mx-auto min-h-screen flex flex-col relative pb-20">
+    <!-- Main App Container -->
+  </div>
+
+  <script>
+    // --- Member Colors Preset ---
+    const PALETTE_COLORS = [
+      { id: 'white', code: '#FFFFFF' },
+      { id: 'pink', code: '#FFB6D9' },
+      { id: 'red', code: '#FF8FA3' },
+      { id: 'orange', code: '#FFB38A' },
+      { id: 'yellow', code: '#FFE58A' },
+      { id: 'green', code: '#A8DFA8' },
+      { id: 'lightblue', code: '#AEE7F8' },
+      { id: 'blue', code: '#91B9F2' },
+      { id: 'purple', code: '#C5A8E8' },
+      { id: 'black', code: '#4A4A4A' },
+      { id: 'gray', code: '#B8BEC7' },
+      { id: 'brown', code: '#B98B72' },
+    ];
+
+    // --- Global Application State ---
+    let currentUserEmail = null; 
+    let currentTab = 'home'; // 'home' | 'log' | 'photo' | 'mydata'
+    let logSubTab = 'meguri'; // 'meguri' | 'event'
+
+    // Detail view states
+    let activeMeguriDetailId = null;
+    let activeEventDetailId = null;
+
+    // Chat Message Action Popup State
+    let activeChatMenuIndex = null; 
+
+    // Photo note fold state
+    let isPhotoNoteOpen = false;
+
+    // Password Visibility toggles
+    let showPass1 = false;
+    let showPass2 = false;
+
+    // LocalStorage Database
+    let db = {
+      users: {},
+      data: {}
+    };
+
+    function loadDB() {
+      const stored = localStorage.getItem('oshilog_db_v7');
+      if (stored) {
+        try { db = JSON.parse(stored); } catch(e) { console.error(e); }
+      }
+      const sessionUser = localStorage.getItem('oshilog_session_email');
+      if (sessionUser && db.users && db.users[sessionUser]) {
+        currentUserEmail = sessionUser;
+      }
+    }
+
+    function saveDB() {
+      localStorage.setItem('oshilog_db_v7', JSON.stringify(db));
+    }
+
+    function getUserData() {
+      if (!currentUserEmail) return null;
+      if (!db.data[currentUserEmail]) {
+        db.data[currentUserEmail] = {
+          userName: 'オタク太郎',
+          theme: 'pink',
+          oshiList: [],
+          meguriList: [],
+          eventList: [],
+          photoNote: ''
+        };
+        saveDB();
+      }
+      return db.data[currentUserEmail];
+    }
+
+    function updateThemeClass() {
+      const userData = getUserData();
+      const theme = userData ? userData.theme || 'pink' : 'pink';
+      document.body.className = `theme-${theme} antialiased min-h-screen flex flex-col selection:bg-gray-200`;
+    }
+
+    // Helper: Sort oshi list so primary (isPrimary=true) is first, keeping others in original order
+    function getSortedOshiList(oshiList = []) {
+      const primaryIndex = oshiList.findIndex(o => o.isPrimary);
+      if (primaryIndex <= 0) return [...oshiList];
+      const list = [...oshiList];
+      const [primary] = list.splice(primaryIndex, 1);
+      return [primary, ...list];
+    }
+
+    loadDB();
+
+    // --- MAIN RENDER ROUTER ---
+    function render() {
+      updateThemeClass();
+      const appEl = document.getElementById('app');
+
+      if (!currentUserEmail) {
+        appEl.innerHTML = renderAuthScreen();
+        lucide.createIcons();
+        return;
+      }
+
+      const userData = getUserData();
+      let contentHtml = '';
+
+      switch (currentTab) {
+        case 'home':
+          contentHtml = renderHomeTab(userData);
+          break;
+        case 'log':
+          if (activeMeguriDetailId) {
+            contentHtml = renderMeguriDetailView(userData, activeMeguriDetailId);
+          } else if (activeEventDetailId) {
+            contentHtml = renderEventDetailView(userData, activeEventDetailId);
+          } else {
+            contentHtml = renderLogTab(userData);
+          }
+          break;
+        case 'photo':
+          contentHtml = renderPhotoTab(userData);
+          break;
+        case 'mydata':
+          contentHtml = renderMyDataTab(userData);
+          break;
+      }
+
+      // Hide bottom tab bar if inside Meguri detail view
+      const isMeguriDetailActive = currentTab === 'log' && activeMeguriDetailId;
+
+      if (isMeguriDetailActive) {
+        appEl.innerHTML = `
+          <div class="flex-1 w-full min-h-screen flex flex-col bg-white">
+            ${contentHtml}
+          </div>
+          <div id="modal-container"></div>
+        `;
+      } else {
+        appEl.innerHTML = `
+          <div class="flex-1 px-4 pt-5 pb-24">
+            ${contentHtml}
+          </div>
+          ${renderBottomNav()}
+          <div id="modal-container"></div>
+        `;
+      }
+
+      lucide.createIcons();
+    }
+
+    // --- AUTHENTICATION SCREEN ---
+    let authMode = 'login';
+    let authError = '';
+
+    function renderAuthScreen() {
+      return `
+        <div class="flex-1 flex flex-col justify-center px-6 py-12 min-h-screen">
+          <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-white rounded-2xl shadow-md flex items-center justify-center mx-auto mb-3 border border-pink-100">
+              <i data-lucide="heart" class="w-8 h-8 text-pink-400"></i>
+            </div>
+            <h1 class="text-xl font-bold text-gray-800 tracking-wide">おしろぐ</h1>
+            <p class="text-xs text-gray-400 mt-1">推し活記録アプリ</p>
+          </div>
+
+          <div class="bg-white p-6 rounded-3xl shadow-lg border border-pink-100">
+            <div class="flex border-b border-pink-100 mb-6">
+              <button onclick="switchAuthMode('login')" class="flex-1 py-2 text-center text-xs font-bold ${authMode === 'login' ? 'text-pink-500 border-b-2 border-pink-500' : 'text-gray-400'}">
+                ログイン
+              </button>
+              <button onclick="switchAuthMode('register')" class="flex-1 py-2 text-center text-xs font-bold ${authMode === 'register' ? 'text-pink-500 border-b-2 border-pink-500' : 'text-gray-400'}">
+                新規登録
+              </button>
+            </div>
+
+            ${authError ? `<div class="mb-4 p-3 text-xs bg-red-50 text-red-500 rounded-2xl border border-red-100 flex items-center gap-1.5"><i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i> ${authError}</div>` : ''}
+
+            <form onsubmit="handleAuthSubmit(event)" class="space-y-4">
+              ${authMode === 'register' ? `
+                <div>
+                  <label class="block text-xs font-bold text-gray-500 mb-1">お名前</label>
+                  <input type="text" id="auth-username" required placeholder="例: オタク太郎" class="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-pink-300 text-xs" />
+                </div>
+              ` : ''}
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">メールアドレス</label>
+                <input type="email" id="auth-email" required placeholder="example@email.com" class="w-full px-4 py-3 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-pink-300 text-xs" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">パスワード</label>
+                <div class="relative flex items-center">
+                  <input type="${showPass1 ? 'text' : 'password'}" id="auth-password" required placeholder="••••••••" class="w-full pl-4 pr-10 py-3 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-pink-300 text-xs" />
+                  <button type="button" onclick="showPass1=!showPass1; render();" class="absolute right-3 text-gray-400 hover:text-pink-500">
+                    <i data-lucide="${showPass1 ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+
+              ${authMode === 'register' ? `
+                <div>
+                  <label class="block text-xs font-bold text-gray-500 mb-1">パスワード (確認)</label>
+                  <div class="relative flex items-center">
+                    <input type="${showPass2 ? 'text' : 'password'}" id="auth-password-confirm" required placeholder="••••••••" class="w-full pl-4 pr-10 py-3 rounded-2xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-pink-300 text-xs" />
+                    <button type="button" onclick="showPass2=!showPass2; render();" class="absolute right-3 text-gray-400 hover:text-pink-500">
+                      <i data-lucide="${showPass2 ? 'eye-off' : 'eye'}" class="w-4 h-4"></i>
+                    </button>
+                  </div>
+                </div>
+              ` : ''}
+
+              <button type="submit" class="w-full py-3.5 bg-pink-400 text-white font-bold rounded-2xl shadow-md active:scale-[0.98] transition-all text-xs mt-2">
+                ${authMode === 'login' ? 'ログイン' : 'アカウントを作成'}
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function switchAuthMode(mode) {
+      authMode = mode;
+      authError = '';
+      render();
+    }
+
+    function handleAuthSubmit(e) {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value.trim().toLowerCase();
+      const pass = document.getElementById('auth-password').value;
+
+      if (!email || !pass) return;
+
+      if (authMode === 'register') {
+        const passConfirmInput = document.getElementById('auth-password-confirm');
+        const passConfirm = passConfirmInput ? passConfirmInput.value : '';
+
+        if (pass !== passConfirm) {
+          authError = 'パスワードが一致しません⚠️';
+          render();
+          return;
+        }
+
+        const userNameInput = document.getElementById('auth-username');
+        const userName = userNameInput ? userNameInput.value.trim() : 'オタク太郎';
+
+        if (db.users[email]) {
+          authError = 'このメールアドレスはすでに登録されています⚠️';
+          render();
+          return;
+        }
+
+        db.users[email] = { password: pass };
+        db.data[email] = { userName: userName || 'オタク太郎', theme: 'pink', oshiList: [], meguriList: [], eventList: [], photoNote: '' };
+        saveDB();
+
+        currentUserEmail = email;
+        localStorage.setItem('oshilog_session_email', email);
+        render();
+      } else {
+        if (!db.users[email] || db.users[email].password !== pass) {
+          authError = 'メールアドレスまたはパスワードが正しくありません';
+          render();
+          return;
+        }
+        currentUserEmail = email;
+        localStorage.setItem('oshilog_session_email', email);
+        render();
+      }
+    }
+
+    // --- BOTTOM NAVIGATION ---
+    function renderBottomNav() {
+      const navItems = [
+        { id: 'home', label: 'ホーム', icon: 'home' },
+        { id: 'log', label: 'ログ', icon: 'calendar' },
+        { id: 'photo', label: '生写真', icon: 'check-square' },
+        { id: 'mydata', label: 'マイデータ', icon: 'user' }
+      ];
+
+      return `
+        <div class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-gray-100 px-3 py-2 flex justify-around shadow-lg z-40">
+          ${navItems.map(item => `
+            <button onclick="switchTab('${item.id}')" class="flex flex-col items-center py-1 px-3 rounded-2xl transition-all ${currentTab === item.id ? 'text-theme-primary font-bold scale-105' : 'text-gray-400'}">
+              <i data-lucide="${item.icon}" class="w-5 h-5 mb-0.5"></i>
+              <span class="text-[11px]">${item.label}</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      activeMeguriDetailId = null;
+      activeEventDetailId = null;
+      activeChatMenuIndex = null;
+      render();
+      window.scrollTo(0, 0);
+    }
+
+    // --- HOME TAB ---
+    function renderHomeTab(userData) {
+      const sortedOshiList = getSortedOshiList(userData.oshiList || []);
+      const primaryOshi = sortedOshiList[0] || null;
+
+      let daysCount = 0;
+      if (primaryOshi && primaryOshi.startDate) {
+        const start = new Date(primaryOshi.startDate);
+        const today = new Date();
+        const diff = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+        daysCount = diff >= 0 ? diff + 1 : 0;
+      }
+
+      const nowStr = new Date().toISOString().split('T')[0];
+      const nextMeguri = [...(userData.meguriList || [])].filter(m => m.date >= nowStr).sort((a,b) => a.date.localeCompare(b.date))[0];
+      const nextEvent = [...(userData.eventList || [])].filter(e => e.date >= nowStr).sort((a,b) => a.date.localeCompare(b.date))[0];
+
+      // Photo Comp Rate
+      const lines = (userData.photoNote || '').split('\n').filter(l => l.trim() !== '');
+      const totalPhotos = lines.length;
+      const checkedPhotos = lines.filter(l => l.startsWith('[x]') || l.startsWith('[X]')).length;
+      const compRate = totalPhotos > 0 ? Math.round((checkedPhotos / totalPhotos) * 100) : 0;
+
+      return `
+        <div class="space-y-4">
+          <!-- Page Header -->
+          <div class="flex items-center justify-between">
+            <h1 class="text-xl font-bold text-theme-primary flex items-center gap-1">
+              ホーム♡
+            </h1>
+          </div>
+
+          <!-- Primary Oshi Profile Card -->
+          ${primaryOshi ? `
+            <div class="bg-white rounded-3xl p-5 shadow-sm border border-theme-border relative overflow-hidden">
+              <div class="flex items-center gap-4">
+                <div class="relative flex-shrink-0">
+                  <div class="w-18 h-18 rounded-full bg-theme-bg border border-theme-border overflow-hidden flex items-center justify-center text-gray-300 shadow-sm" style="width:72px; height:72px;">
+                    ${primaryOshi.icon ? `<img src="${primaryOshi.icon}" class="w-full h-full object-cover" />` : `<i data-lucide="user" class="w-8 h-8 text-gray-300"></i>`}
+                  </div>
+
+                  <!-- Member Color Heart Overlay -->
+                  ${renderMemberColorHeart(primaryOshi.colors)}
+                </div>
+
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-bold text-theme-primary bg-theme-sub px-2 py-0.5 rounded-full">
+                      ${primaryOshi.isPrimary ? '1推し' : '推しメン'}
+                    </span>
+                  </div>
+                  <h2 class="text-base font-bold text-gray-800 truncate mt-0.5">${escapeHtml(primaryOshi.name)}</h2>
+                  
+                  ${primaryOshi.birthday ? `
+                    <p class="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                      <i data-lucide="gift" class="w-3 h-3 text-theme-primary"></i> ${primaryOshi.birthday}
+                    </p>
+                  ` : ''}
+
+                  ${primaryOshi.startDate ? `
+                    <div class="mt-1 flex items-baseline gap-1">
+                      <span class="text-xs text-gray-500">推し始めて</span>
+                      <span class="text-base font-extrabold text-theme-primary">${daysCount}</span>
+                      <span class="text-xs text-gray-500">日</span>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          ` : `
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-theme-border text-center py-6">
+              <p class="text-xs text-gray-400 mb-3">推しメンがまだ登録されていません</p>
+              <button onclick="switchTab('mydata')" class="px-4 py-2 bg-theme-accent text-white font-bold text-xs rounded-full shadow-sm">
+                マイデータで登録する
+              </button>
+            </div>
+          `}
+
+          <!-- Photo Comp Rate Card -->
+          <div class="bg-white rounded-3xl p-5 shadow-sm border border-theme-border space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-theme-sub flex items-center justify-center text-theme-primary">
+                  <i data-lucide="camera" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h3 class="text-xs font-bold text-gray-700">生写真コンプ率</h3>
+                  <p class="text-[10px] text-gray-400">コレクション進捗状況</p>
+                </div>
+              </div>
+              <button onclick="switchTab('photo')" class="text-[10px] font-bold text-theme-primary bg-theme-sub px-2.5 py-1 rounded-full border border-theme-border">
+                生写真をチェック
+              </button>
+            </div>
+
+            <div class="flex items-end justify-between pt-1">
+              <div class="flex items-baseline gap-1">
+                <span class="text-3xl font-black text-theme-primary tracking-tight">${compRate}</span>
+                <span class="text-sm font-bold text-theme-primary">%</span>
+              </div>
+              <span class="text-xs font-bold text-gray-400 mb-1">${checkedPhotos} / ${totalPhotos} 枚コンプ</span>
+            </div>
+
+            <div class="w-full bg-theme-sub rounded-full h-3 overflow-hidden p-0.5 border border-theme-border">
+              <div class="bg-theme-accent h-full rounded-full transition-all duration-500 shadow-sm" style="width: ${compRate}%"></div>
+            </div>
+          </div>
+
+          <!-- Quick Stats Grid -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-white p-4 rounded-3xl shadow-sm border border-theme-border flex flex-col justify-between">
+              <div class="flex items-center justify-between text-gray-400 mb-1">
+                <span class="text-xs font-bold text-gray-500">ミーグリ記録数</span>
+                <i data-lucide="message-square" class="w-4 h-4 text-theme-primary"></i>
+              </div>
+              <div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-black text-theme-primary">${userData.meguriList ? userData.meguriList.length : 0}</span>
+                  <span class="text-xs font-bold text-gray-400">件</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-3xl shadow-sm border border-theme-border flex flex-col justify-between">
+              <div class="flex items-center justify-between text-gray-400 mb-1">
+                <span class="text-xs font-bold text-gray-500">イベント記録数</span>
+                <i data-lucide="calendar" class="w-4 h-4 text-theme-primary"></i>
+              </div>
+              <div>
+                <div class="flex items-baseline gap-1">
+                  <span class="text-2xl font-black text-theme-primary">${userData.eventList ? userData.eventList.length : 0}</span>
+                  <span class="text-xs font-bold text-gray-400">件</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upcoming Schedule Card -->
+          <div class="bg-white rounded-3xl p-4 shadow-sm border border-theme-border">
+            <h3 class="text-xs font-bold text-gray-500 mb-3 flex items-center gap-1.5">
+              <i data-lucide="calendar" class="w-4 h-4 text-theme-primary"></i> 次の予定
+            </h3>
+            ${nextMeguri || nextEvent ? `
+              <div class="space-y-2">
+                ${nextMeguri ? `
+                  <div onclick="openMeguriDetail('${nextMeguri.id}')" class="p-3 bg-theme-sub rounded-2xl border border-theme-border flex items-center justify-between cursor-pointer">
+                    <div>
+                      <span class="text-[10px] font-bold text-theme-primary bg-white px-2 py-0.5 rounded border border-theme-border">ミーグリ</span>
+                      <p class="text-xs font-bold text-gray-700 mt-1">${escapeHtml(nextMeguri.title || nextMeguri.member)}</p>
+                    </div>
+                    <span class="text-xs font-bold text-theme-primary">${nextMeguri.date}</span>
+                  </div>
+                ` : ''}
+                ${nextEvent ? `
+                  <div onclick="openEventDetail('${nextEvent.id}')" class="p-3 bg-theme-sub rounded-2xl border border-theme-border flex items-center justify-between cursor-pointer">
+                    <div>
+                      <span class="text-[10px] font-bold text-purple-500 bg-white px-2 py-0.5 rounded border border-purple-100">イベント</span>
+                      <p class="text-xs font-bold text-gray-700 mt-1">${escapeHtml(nextEvent.title)}</p>
+                    </div>
+                    <span class="text-xs font-bold text-purple-500">${nextEvent.date}</span>
+                  </div>
+                ` : ''}
+              </div>
+            ` : `
+              <p class="text-xs text-gray-400 text-center py-2">予定されている記録はありません</p>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    // Member Colors SVG Heart Overlay
+    function renderMemberColorHeart(colors) {
+      if (!colors || colors.length === 0) return '';
+      const c1 = colors[0];
+      const c2 = colors.length > 1 ? colors[1] : colors[0];
+
+      const strokeAttr = (c1.toUpperCase() === '#FFFFFF' || c2.toUpperCase() === '#FFFFFF') ? 'stroke="#E2E8F0" stroke-width="1.5"' : '';
+
+      return `
+        <div class="absolute -bottom-1 -right-1 bg-white p-0.5 rounded-full shadow-sm border border-gray-100 flex items-center justify-center">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="heartGrad-${c1.replace('#','')}-${c2.replace('#','')}" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="${c1}" />
+                <stop offset="100%" stop-color="${c2}" />
+              </linearGradient>
+            </defs>
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" 
+                  fill="url(#heartGrad-${c1.replace('#','')}-${c2.replace('#','')})" ${strokeAttr} />
+          </svg>
+        </div>
+      `;
+    }
+
+    // --- LOG TAB ---
+    function renderLogTab(userData) {
+      return `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h1 class="text-xl font-bold text-theme-primary">ログ</h1>
+            <button onclick="${logSubTab === 'meguri' ? 'openMeguriCreateModal()' : 'openEventCreateModal()'}" class="text-xs font-bold bg-theme-accent text-white px-3.5 py-1.5 rounded-full shadow-sm active:scale-95 transition-all flex items-center gap-1">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> 追加
+            </button>
+          </div>
+
+          <div class="bg-white p-1 rounded-2xl shadow-sm border border-theme-border flex">
+            <button onclick="switchLogSubTab('meguri')" class="flex-1 py-2 text-xs font-bold rounded-xl transition-all ${logSubTab === 'meguri' ? 'bg-theme-accent text-white' : 'text-gray-400'}">
+              ミーグリ
+            </button>
+            <button onclick="switchLogSubTab('event')" class="flex-1 py-2 text-xs font-bold rounded-xl transition-all ${logSubTab === 'event' ? 'bg-theme-accent text-white' : 'text-gray-400'}">
+              イベント
+            </button>
+          </div>
+
+          ${logSubTab === 'meguri' ? renderMeguriSummaryList(userData) : renderEventSummaryList(userData)}
+        </div>
+      `;
+    }
+
+    function switchLogSubTab(sub) {
+      logSubTab = sub;
+      render();
+    }
+
+    function renderMeguriSummaryList(userData) {
+      const list = [...(userData.meguriList || [])].sort((a,b) => b.date.localeCompare(a.date));
+      if (list.length === 0) {
+        return `
+          <div class="bg-white rounded-3xl p-8 shadow-sm border border-theme-border text-center my-6">
+            <p class="text-xs text-gray-400">ミーグリの記録がありません</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="space-y-3">
+          ${list.map(item => `
+            <div onclick="openMeguriDetail('${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm border border-theme-border cursor-pointer active:scale-[0.99] transition-all flex items-center justify-between">
+              <div class="space-y-1 min-w-0 pr-2">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="text-[11px] font-bold text-theme-primary bg-theme-sub px-2 py-0.5 rounded-md border border-theme-border">${item.date}</span>
+                  ${item.part ? `<span class="text-[11px] text-gray-400">${escapeHtml(item.part)}部</span>` : ''}
+                  ${item.count ? `<span class="text-[11px] text-gray-400">${escapeHtml(item.count)}枚</span>` : ''}
+                </div>
+                <h3 class="text-sm font-bold text-gray-800 truncate">${escapeHtml(item.title || item.member)}</h3>
+                <p class="text-xs text-gray-500">メンバー: ${escapeHtml(item.member)}</p>
+              </div>
+              <i data-lucide="chevron-right" class="w-5 h-5 text-gray-300 flex-shrink-0"></i>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderEventSummaryList(userData) {
+      const list = [...(userData.eventList || [])].sort((a,b) => b.date.localeCompare(a.date));
+      if (list.length === 0) {
+        return `
+          <div class="bg-white rounded-3xl p-8 shadow-sm border border-theme-border text-center my-6">
+            <p class="text-xs text-gray-400">イベントの記録がありません</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="space-y-3">
+          ${list.map(item => `
+            <div onclick="openEventDetail('${item.id}')" class="bg-white rounded-2xl p-4 shadow-sm border border-theme-border cursor-pointer active:scale-[0.99] transition-all flex items-center justify-between">
+              <div class="space-y-1 min-w-0 pr-2">
+                <span class="text-[11px] font-bold text-purple-500 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">${item.date}</span>
+                <h3 class="text-sm font-bold text-gray-800 truncate mt-1">${escapeHtml(item.title)}</h3>
+              </div>
+              <i data-lucide="chevron-right" class="w-5 h-5 text-gray-300 flex-shrink-0"></i>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function openMeguriDetail(id) {
+      currentTab = 'log';
+      logSubTab = 'meguri';
+      activeMeguriDetailId = id;
+      activeChatMenuIndex = null;
+      render();
+    }
+
+    function openEventDetail(id) {
+      currentTab = 'log';
+      logSubTab = 'event';
+      activeEventDetailId = id;
+      render();
+    }
+
+    // --- FULL SCREEN MEGURI TALK ROOM (WITH SHARE FEATURE) ---
+    function renderMeguriDetailView(userData, id) {
+      const meguri = userData.meguriList.find(m => m.id === id);
+      if (!meguri) {
+        activeMeguriDetailId = null;
+        return renderLogTab(userData);
+      }
+
+      let oshiAvatar = meguri.customIcon || null;
+      if (!oshiAvatar) {
+        const foundOshi = (userData.oshiList || []).find(o => o.name === meguri.member);
+        if (foundOshi) oshiAvatar = foundOshi.icon;
+      }
+
+      const infoParts = [meguri.date];
+      if (meguri.part) infoParts.push(`${meguri.part}部`);
+      if (meguri.count) infoParts.push(`${meguri.count}枚`);
+
+      return `
+        <div class="flex-1 flex flex-col h-screen bg-white" onclick="closeChatMenu(event)">
+          <!-- Top Sticky Header Bar -->
+          <div class="flex items-center justify-between px-4 py-2.5 bg-white border-b border-gray-100 sticky top-0 z-20">
+            <button onclick="activeMeguriDetailId=null; render();" class="text-xs font-bold text-theme-primary flex items-center gap-1">
+              <i data-lucide="chevron-left" class="w-5 h-5"></i> ログ一覧
+            </button>
+            <div class="flex items-center gap-1.5">
+              <button onclick="openShareOptionsModal('${meguri.id}')" class="text-xs font-bold text-theme-primary px-3 py-1 bg-theme-sub border border-theme-border rounded-full flex items-center gap-1">
+                <i data-lucide="share-2" class="w-3.5 h-3.5"></i> 共有
+              </button>
+              <button onclick="openMeguriCreateModal('${meguri.id}')" class="text-xs font-bold text-gray-500 px-3 py-1 bg-gray-50 border border-gray-200 rounded-full">
+                編集
+              </button>
+              <button onclick="deleteMeguri('${meguri.id}')" class="text-xs font-bold text-red-500 px-3 py-1 bg-red-50 border border-red-100 rounded-full">
+                削除
+              </button>
+            </div>
+          </div>
+
+          <!-- Centered Meguri Info Header -->
+          <div class="px-5 py-3 bg-theme-sub border-b border-theme-border text-center">
+            <h1 class="text-sm font-bold text-gray-800 leading-tight">${escapeHtml(meguri.title || meguri.member)}</h1>
+            <p class="text-[11px] font-medium text-gray-400 mt-0.5">
+              ${infoParts.join(' / ')} ${meguri.member ? ` ・ ${escapeHtml(meguri.member)}` : ''}
+            </p>
+          </div>
+
+          <!-- Chat Stream Area -->
+          <div class="flex-1 p-4 bg-white overflow-y-auto space-y-4 no-scrollbar">
+            ${(meguri.chats || []).length > 0 ? (meguri.chats || []).map((chat, idx) => `
+              <div class="relative flex ${chat.sender === 'oshi' ? 'justify-start items-end gap-2' : 'justify-end'}">
+                ${chat.sender === 'oshi' ? `
+                  <div class="w-8 h-8 rounded-full bg-theme-sub overflow-hidden flex-shrink-0 border border-theme-border flex items-center justify-center">
+                    ${oshiAvatar ? `<img src="${oshiAvatar}" class="w-full h-full object-cover" />` : `<i data-lucide="user" class="w-4 h-4 text-gray-300"></i>`}
+                  </div>
+                ` : ''}
+
+                <!-- Slightly refined slimmer bubble max width: max-w-[72%] -->
+                <div class="relative max-w-[72%]">
+                  ${activeChatMenuIndex === idx ? `
+                    <div class="absolute -top-10 ${chat.sender === 'oshi' ? 'left-0' : 'right-0'} bg-gray-800 text-white rounded-full px-3 py-1 shadow-lg flex items-center gap-3 z-30 text-[11px] font-bold">
+                      <button onclick="event.stopPropagation(); openEditChatModal('${meguri.id}', ${idx})" class="hover:text-theme-primary flex items-center gap-1">
+                        <i data-lucide="edit-3" class="w-3 h-3"></i> 編集
+                      </button>
+                      <span class="text-gray-600">|</span>
+                      <button onclick="event.stopPropagation(); deleteChatItem('${meguri.id}', ${idx})" class="text-red-300 hover:text-red-400 flex items-center gap-1">
+                        <i data-lucide="trash-2" class="w-3 h-3"></i> 削除
+                      </button>
+                    </div>
+                  ` : ''}
+
+                  <div 
+                    onclick="event.stopPropagation(); toggleChatMenu(${idx})"
+                    class="rounded-2xl px-3.5 py-2 text-xs cursor-pointer transition-all active:scale-[0.98] ${
+                      chat.sender === 'oshi' 
+                        ? 'bg-theme-sub text-gray-800 border border-theme-border rounded-bl-none shadow-sm' 
+                        : 'bg-white text-gray-800 border border-gray-100 rounded-br-none shadow-sm'
+                    }"
+                  >
+                    <p class="whitespace-pre-wrap break-words leading-relaxed">${escapeHtml(chat.text)}</p>
+                  </div>
+                </div>
+              </div>
+            `).join('') : `<p class="text-xs text-gray-300 text-center py-16">会話ログを追加してください</p>`}
+          </div>
+
+          <!-- Bottom Chat Message Input Bar -->
+          <div class="p-3 bg-white border-t border-gray-100 sticky bottom-0 z-20">
+            <form onsubmit="addChatMessage(event, '${meguri.id}')" class="space-y-2">
+              <div class="flex bg-theme-bg p-1 rounded-xl border border-theme-border text-xs">
+                <label class="flex-1 text-center py-1 font-bold rounded-lg cursor-pointer transition-all">
+                  <input type="radio" name="detail-sender" value="oshi" checked class="mr-1 accent-theme" />
+                  推し
+                </label>
+                <label class="flex-1 text-center py-1 font-bold rounded-lg cursor-pointer transition-all">
+                  <input type="radio" name="detail-sender" value="me" class="mr-1 accent-theme" />
+                  自分
+                </label>
+              </div>
+
+              <div class="flex gap-2">
+                <input type="text" id="detail-chat-input" required placeholder="メッセージを入力..." class="flex-1 px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+                <button type="submit" class="px-4 bg-theme-accent text-white font-bold text-xs rounded-2xl shadow-sm active:scale-95 transition-all">
+                  送信
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleChatMenu(index) {
+      if (activeChatMenuIndex === index) {
+        activeChatMenuIndex = null;
+      } else {
+        activeChatMenuIndex = index;
+      }
+      render();
+    }
+
+    function closeChatMenu(e) {
+      if (activeChatMenuIndex !== null) {
+        activeChatMenuIndex = null;
+        render();
+      }
+    }
+
+    function openEditChatModal(meguriId, chatIndex) {
+      const userData = getUserData();
+      const meguri = userData.meguriList.find(m => m.id === meguriId);
+      if (!meguri || !meguri.chats || !meguri.chats[chatIndex]) return;
+
+      const currentText = meguri.chats[chatIndex].text;
+
+      const modalHtml = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onclick="closeModal(event)">
+          <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-4" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+              <h3 class="font-bold text-theme-primary text-sm">メッセージの編集</h3>
+              <button onclick="closeModalDirect()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form onsubmit="saveEditedChatMessage(event, '${meguriId}', ${chatIndex})" class="space-y-3">
+              <div>
+                <textarea id="edit-chat-text" rows="3" required class="w-full p-3 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary resize-none">${escapeHtml(currentText)}</textarea>
+              </div>
+
+              <button type="submit" class="w-full py-2.5 bg-theme-accent text-white font-bold text-xs rounded-2xl shadow-sm">
+                更新する
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-container').innerHTML = modalHtml;
+      lucide.createIcons();
+    }
+
+    function saveEditedChatMessage(e, meguriId, chatIndex) {
+      e.preventDefault();
+      const userData = getUserData();
+      const meguri = userData.meguriList.find(m => m.id === meguriId);
+      const textInput = document.getElementById('edit-chat-text');
+
+      if (meguri && meguri.chats && meguri.chats[chatIndex] && textInput) {
+        const updated = textInput.value.trim();
+        if (updated) {
+          meguri.chats[chatIndex].text = updated;
+          saveDB();
+        }
+      }
+
+      activeChatMenuIndex = null;
+      closeModalDirect();
+      render();
+    }
+
+    function deleteChatItem(meguriId, chatIndex) {
+      const userData = getUserData();
+      const meguri = userData.meguriList.find(m => m.id === meguriId);
+      if (meguri && meguri.chats) {
+        meguri.chats.splice(chatIndex, 1);
+        saveDB();
+      }
+      activeChatMenuIndex = null;
+      render();
+    }
+
+    // --- SHARE MODALS (IMAGE SHARE & TEXT TRANSCRIPT SHARE) ---
+    function openShareOptionsModal(meguriId) {
+      const modalHtml = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onclick="closeModal(event)">
+          <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-4" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+              <h3 class="font-bold text-theme-primary text-sm">ミーグリの共有</h3>
+              <button onclick="closeModalDirect()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="space-y-2">
+              <button onclick="openImageShareModal('${meguriId}')" class="w-full p-3 bg-theme-sub hover:bg-gray-100 rounded-2xl border border-theme-border flex items-center justify-between transition-all">
+                <span class="flex items-center gap-2 text-xs font-bold text-gray-800">
+                  <i data-lucide="image" class="w-4 h-4 text-theme-primary"></i> 画像で共有
+                </span>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+              </button>
+
+              <button onclick="openTextShareModal('${meguriId}')" class="w-full p-3 bg-theme-sub hover:bg-gray-100 rounded-2xl border border-theme-border flex items-center justify-between transition-all">
+                <span class="flex items-center gap-2 text-xs font-bold text-gray-800">
+                  <i data-lucide="file-text" class="w-4 h-4 text-theme-primary"></i> 文字起こしで共有
+                </span>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-container').innerHTML = modalHtml;
+      lucide.createIcons();
+    }
+
+    // 1. IMAGE SHARE GENERATOR (HTML5 CANVAS)
+    function openImageShareModal(meguriId) {
+      const userData = getUserData();
+      const meguri = userData.meguriList.find(m => m.id === meguriId);
+      if (!meguri) return;
+
+      const modalHtml = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onclick="closeModal(event)">
+          <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-3 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-1 border-b border-theme-border">
+              <h3 class="font-bold text-theme-primary text-sm">共有用カード画像の生成</h3>
+              <button onclick="closeModalDirect()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="flex flex-col items-center">
+              <canvas id="share-card-canvas" width="600" height="800" class="w-full rounded-2xl border border-gray-200 shadow-sm"></canvas>
+            </div>
+
+            <div class="pt-2 flex gap-2">
+              <button onclick="downloadShareImage()" class="w-full py-3 bg-theme-accent text-white font-bold text-xs rounded-2xl shadow-sm flex items-center justify-center gap-1.5">
+                <i data-lucide="download" class="w-4 h-4"></i> 画像を保存
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-container').innerHTML = modalHtml;
+      lucide.createIcons();
+
+      // Render Image on Canvas
+      generateShareCanvasImage(userData, meguri);
+    }
+
+    function generateShareCanvasImage(userData, meguri) {
+      const canvas = document.getElementById('share-card-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      const theme = userData.theme || 'pink';
+      let bgColor = '#FFF8FC';
+      let accentColor = '#FFB6D9';
+      let textColor = '#E98AB5';
+      let bubbleOshi = '#FFF3F8';
+
+      if (theme === 'lightblue') {
+        bgColor = '#F4FAFF';
+        accentColor = '#82C9F4';
+        textColor = '#4A9ED6';
+        bubbleOshi = '#EBF5FF';
+      } else if (theme === 'white') {
+        bgColor = '#FAFAFA';
+        accentColor = '#18181B';
+        textColor = '#18181B';
+        bubbleOshi = '#F4F4F5';
+      }
+
+      // Draw Card Background
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Resolve Oshi Avatar
+      let oshiAvatar = meguri.customIcon || null;
+      if (!oshiAvatar) {
+        const foundOshi = (userData.oshiList || []).find(o => o.name === meguri.member);
+        if (foundOshi) oshiAvatar = foundOshi.icon;
+      }
+
+      // Helper function to finish drawing card details after avatar is loaded
+      const drawDetails = (imgObj) => {
+        let currentY = 50;
+
+        // Draw Avatar
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(300, currentY + 45, 45, 0, Math.PI * 2, true);
+        ctx.closePath();
+        ctx.clip();
+        if (imgObj) {
+          ctx.drawImage(imgObj, 255, currentY, 90, 90);
+        } else {
+          ctx.fillStyle = '#E2E8F0';
+          ctx.fillRect(255, currentY, 90, 90);
+        }
+        ctx.restore();
+
+        // Circle Border
+        ctx.beginPath();
+        ctx.arc(300, currentY + 45, 45, 0, Math.PI * 2, true);
+        ctx.strokeStyle = accentColor;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        currentY += 115;
+
+        // Oshi Name
+        ctx.fillStyle = '#1F2937';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(meguri.member || '推し', 300, currentY);
+
+        currentY += 28;
+
+        // Title
+        ctx.fillStyle = textColor;
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(meguri.title || 'ミーグリ記録', 300, currentY);
+
+        currentY += 24;
+
+        // Sub Meta Info (Date / Part / Count)
+        const infoStr = `${meguri.date} ${meguri.part ? meguri.part + '部' : ''} ${meguri.count ? meguri.count + '枚' : ''}`;
+        ctx.fillStyle = '#9CA3AF';
+        ctx.font = '13px sans-serif';
+        ctx.fillText(infoStr.trim(), 300, currentY);
+
+        currentY += 30;
+
+        // Chat Box Area Container
+        const boxX = 30;
+        const boxY = currentY;
+        const boxW = 540;
+        const boxH = canvas.height - boxY - 40;
+
+        // Rounded White Rectangle Container for chats
+        ctx.fillStyle = '#FFFFFF';
+        ctx.shadowColor = 'rgba(0,0,0,0.06)';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, boxW, boxH, 20);
+        ctx.fill();
+        ctx.shadowBlur = 0; // reset
+
+        // Draw Chat Bubbles
+        let chatY = boxY + 25;
+        const chats = meguri.chats || [];
+
+        chats.slice(0, 7).forEach(c => {
+          const isOshi = c.sender === 'oshi';
+          const text = c.text;
+
+          ctx.font = '14px sans-serif';
+          const textWidth = ctx.measureText(text).width;
+          const bubbleW = Math.min(textWidth + 24, 380);
+          const bubbleH = 36;
+
+          if (isOshi) {
+            const bx = boxX + 20;
+            ctx.fillStyle = bubbleOshi;
+            ctx.beginPath();
+            ctx.roundRect(bx, chatY, bubbleW, bubbleH, 12);
+            ctx.fill();
+
+            ctx.fillStyle = '#1F2937';
+            ctx.textAlign = 'left';
+            ctx.fillText(text, bx + 12, chatY + 23);
+          } else {
+            const bx = boxX + boxW - 20 - bubbleW;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.strokeStyle = '#E5E7EB';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(bx, chatY, bubbleW, bubbleH, 12);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#1F2937';
+            ctx.textAlign = 'left';
+            ctx.fillText(text, bx + 12, chatY + 23);
+          }
+
+          chatY += 48;
+        });
+
+        // App Footer Watermark
+        ctx.fillStyle = '#D1D5DB';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('おしろぐ ♡', 300, canvas.height - 15);
+      };
+
+      if (oshiAvatar) {
+        const img = new Image();
+        img.onload = () => drawDetails(img);
+        img.src = oshiAvatar;
+      } else {
+        drawDetails(null);
+      }
+    }
+
+    function downloadShareImage() {
+      const canvas = document.getElementById('share-card-canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = `oshilog_meguri_${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // 2. TEXT TRANSCRIPT SHARE MODAL
+    function openTextShareModal(meguriId) {
+      const userData = getUserData();
+      const meguri = userData.meguriList.find(m => m.id === meguriId);
+      if (!meguri) return;
+
+      const modalHtml = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onclick="closeModal(event)">
+          <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-4" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+              <h3 class="font-bold text-theme-primary text-sm">文字起こし共有</h3>
+              <button onclick="closeModalDirect()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <label class="block font-bold text-gray-500 mb-1">推し側の表記</label>
+                <input type="text" id="share-oshi-label" value="推し" oninput="updateTextTranscript('${meguriId}')" class="w-full px-3 py-2 rounded-xl bg-theme-bg border border-theme-border focus:outline-none" />
+              </div>
+              <div>
+                <label class="block font-bold text-gray-500 mb-1">自分側の表記</label>
+                <input type="text" id="share-me-label" value="自" oninput="updateTextTranscript('${meguriId}')" class="w-full px-3 py-2 rounded-xl bg-theme-bg border border-theme-border focus:outline-none" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-gray-500 mb-1">プレビュー</label>
+              <textarea id="transcript-preview-area" rows="7" readonly class="w-full p-3 rounded-2xl bg-gray-50 border border-gray-200 text-xs font-mono leading-relaxed resize-none focus:outline-none"></textarea>
+            </div>
+
+            <button onclick="copyTranscriptToClipboard()" class="w-full py-3 bg-theme-accent text-white font-bold text-xs rounded-2xl shadow-sm flex items-center justify-center gap-1.5">
+              <i data-lucide="copy" class="w-4 h-4"></i> テキストをコピー
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-container').innerHTML = modalHtml;
+      lucide.createIcons();
+
+      updateTextTranscript(meguriId);
+    }
+
+    function updateTextTranscript(meguriId) {
+      const userData = getUserData();
+      const meguri = userData.meguriList.find(m => m.id === meguriId);
+      if (!meguri) return;
+
+      const oshiLabel = document.getElementById('share-oshi-label')?.value || '推し';
+      const meLabel = document.getElementById('share-me-label')?.value || '自';
+
+      const lines = (meguri.chats || []).map(chat => {
+        const name = chat.sender === 'oshi' ? oshiLabel : meLabel;
+        return `${name} 「${chat.text}」`;
+      });
+
+      const previewArea = document.getElementById('transcript-preview-area');
+      if (previewArea) {
+        previewArea.value = lines.join('\n');
+      }
+    }
+
+    function copyTranscriptToClipboard() {
+      const previewArea = document.getElementById('transcript-preview-area');
+      if (previewArea && previewArea.value) {
+        previewArea.select();
+        document.execCommand('copy');
+        alert('テキストをクリップボードにコピーしました！✨');
+      }
+    }
+
+    // --- EVENT DETAIL VIEW ---
+    function renderEventDetailView(userData, id) {
+      const evt = userData.eventList.find(e => e.id === id);
+      if (!evt) {
+        activeEventDetailId = null;
+        return renderLogTab(userData);
+      }
+
+      return `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+            <button onclick="activeEventDetailId=null; render();" class="text-xs font-bold text-theme-primary flex items-center gap-1">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i> 一覧に戻る
+            </button>
+            <div class="flex items-center gap-2">
+              <button onclick="openEventCreateModal('${evt.id}')" class="text-xs font-bold text-gray-500 px-2.5 py-1 bg-white border border-theme-border rounded-full shadow-sm">
+                編集
+              </button>
+              <button onclick="deleteEvent('${evt.id}')" class="text-xs font-bold text-red-500 px-2.5 py-1 bg-red-50 border border-red-100 rounded-full shadow-sm">
+                削除
+              </button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl p-5 shadow-sm border border-theme-border space-y-3">
+            <span class="text-xs font-bold text-purple-500 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-100 inline-block">${evt.date}</span>
+            <h1 class="text-lg font-bold text-gray-800">${escapeHtml(evt.title)}</h1>
+            
+            ${evt.memo ? `
+              <div class="pt-3 border-t border-theme-border">
+                <h2 class="text-xs font-bold text-gray-500 mb-1">メモ</h2>
+                <p class="text-xs text-gray-700 bg-theme-bg p-3 rounded-2xl border border-theme-border whitespace-pre-wrap">${escapeHtml(evt.memo)}</p>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    // --- PHOTO TAB ---
+    function renderPhotoTab(userData) {
+      const rawNote = userData.photoNote || '';
+
+      return `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h1 class="text-xl font-bold text-theme-primary">生写真</h1>
+            <button onclick="togglePhotoNoteFold()" class="text-xs font-bold text-theme-primary bg-white border border-theme-border px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1">
+              <i data-lucide="${isPhotoNoteOpen ? 'chevron-up' : 'edit-3'}" class="w-3.5 h-3.5"></i> ${isPhotoNoteOpen ? '入力欄を閉じる' : 'メモを編集'}
+            </button>
+          </div>
+
+          <div class="bg-white rounded-3xl p-4 shadow-sm border border-theme-border space-y-3">
+            ${isPhotoNoteOpen ? `
+              <div class="space-y-1 pb-3 border-b border-theme-border">
+                <label class="block text-xs font-bold text-gray-500">リスト編集 (改行で自動チェックリスト化)</label>
+                <textarea 
+                  id="photo-note-input"
+                  rows="8"
+                  oninput="handlePhotoNoteInput(event)"
+                  placeholder="ここに品目などを改行して入力..."
+                  class="w-full p-3 bg-theme-bg rounded-2xl border border-theme-border text-xs focus:outline-none focus:border-theme-primary leading-relaxed resize-none"
+                >${escapeHtml(rawNote)}</textarea>
+              </div>
+            ` : ''}
+
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h2 class="text-xs font-bold text-gray-500">チェックリスト</h2>
+              </div>
+              <div class="space-y-1.5" id="photo-checklist-container">
+                ${renderChecklistFromNote(rawNote)}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function togglePhotoNoteFold() {
+      isPhotoNoteOpen = !isPhotoNoteOpen;
+      render();
+    }
+
+    function handlePhotoNoteInput(e) {
+      const userData = getUserData();
+      userData.photoNote = e.target.value;
+      saveDB();
+      const container = document.getElementById('photo-checklist-container');
+      if (container) {
+        container.innerHTML = renderChecklistFromNote(e.target.value);
+        lucide.createIcons();
+      }
+    }
+
+    function renderChecklistFromNote(text) {
+      const lines = text.split('\n').filter(l => l.trim() !== '');
+      if (lines.length === 0) {
+        return `<p class="text-xs text-gray-300 text-center py-4">「メモを編集」からテキストを入力してください</p>`;
+      }
+
+      return lines.map((line, idx) => {
+        const isChecked = line.startsWith('[x]') || line.startsWith('[X]');
+        const cleanText = line.replace(/^\[[ xX]\]\s*/, '');
+
+        return `
+          <div onclick="toggleChecklistLine(${idx})" class="flex items-center gap-2.5 p-2.5 rounded-xl border ${isChecked ? 'bg-theme-sub border-theme-border text-gray-400 line-through' : 'bg-white border-theme-border text-gray-700'} cursor-pointer active:scale-[0.99] transition-all">
+            <div class="w-4 h-4 rounded border flex items-center justify-center transition-all ${isChecked ? 'bg-theme-accent border-theme-accent text-white' : 'border-gray-300 bg-white'}">
+              ${isChecked ? `<i data-lucide="check" class="w-3 h-3 stroke-[3]"></i>` : ''}
+            </div>
+            <span class="text-xs font-medium">${escapeHtml(cleanText)}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleChecklistLine(lineIndex) {
+      const userData = getUserData();
+      const lines = (userData.photoNote || '').split('\n').filter(l => l.trim() !== '');
+      if (!lines[lineIndex]) return;
+
+      const line = lines[lineIndex];
+      const isChecked = line.startsWith('[x]') || line.startsWith('[X]');
+      const cleanText = line.replace(/^\[[ xX]\]\s*/, '');
+
+      if (isChecked) {
+        lines[lineIndex] = cleanText;
+      } else {
+        lines[lineIndex] = `[x] ${cleanText}`;
+      }
+
+      userData.photoNote = lines.join('\n');
+      saveDB();
+      render();
+    }
+
+    // --- MY DATA TAB ---
+    function renderMyDataTab(userData) {
+      const sortedOshiList = getSortedOshiList(userData.oshiList || []);
+      const currentTheme = userData.theme || 'pink';
+
+      return `
+        <div class="space-y-5">
+          <h1 class="text-xl font-bold text-theme-primary">マイデータ</h1>
+
+          <!-- User Profile Name Card -->
+          <div class="bg-white rounded-3xl p-4 shadow-sm border border-theme-border flex items-center justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-12 h-12 bg-theme-sub rounded-full flex items-center justify-center text-theme-primary font-bold text-base border border-theme-border flex-shrink-0">
+                <i data-lucide="user" class="w-6 h-6"></i>
+              </div>
+              <div class="min-w-0">
+                <span class="text-[10px] font-bold text-theme-primary bg-theme-sub px-2 py-0.5 rounded-full border border-theme-border">ユーザー名</span>
+                <h2 class="text-sm font-bold text-gray-800 mt-0.5 truncate">${escapeHtml(userData.userName || 'オタク太郎')}</h2>
+              </div>
+            </div>
+            <button onclick="openEditUserNameModal()" class="text-xs font-bold text-theme-primary bg-theme-sub border border-theme-border px-3 py-1.5 rounded-full shadow-xs flex-shrink-0">
+              名前を変更
+            </button>
+          </div>
+
+          <!-- Theme Selector Section -->
+          <div class="bg-white rounded-3xl p-4 shadow-sm border border-theme-border space-y-3">
+            <h2 class="text-xs font-bold text-gray-500 pb-2 border-b border-theme-border">テーマカラー設定</h2>
+            
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="setAppTheme('pink')" class="p-3 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-all ${currentTheme === 'pink' ? 'border-pink-400 bg-pink-50' : 'border-gray-100 bg-gray-50'}">
+                <div class="w-6 h-6 rounded-full bg-[#FFB6D9] border border-pink-200"></div>
+                <span class="text-[11px] font-bold text-gray-700">ピンク</span>
+              </button>
+
+              <button onclick="setAppTheme('lightblue')" class="p-3 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-all ${currentTheme === 'lightblue' ? 'border-sky-400 bg-sky-50' : 'border-gray-100 bg-gray-50'}">
+                <div class="w-6 h-6 rounded-full bg-[#82C9F4] border border-sky-200"></div>
+                <span class="text-[11px] font-bold text-gray-700">水色</span>
+              </button>
+
+              <button onclick="setAppTheme('white')" class="p-3 rounded-2xl border-2 flex flex-col items-center gap-1.5 transition-all ${currentTheme === 'white' ? 'border-black bg-zinc-100' : 'border-gray-100 bg-gray-50'}">
+                <div class="w-6 h-6 rounded-full bg-white border border-gray-400"></div>
+                <span class="text-[11px] font-bold text-gray-700">ホワイト</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Oshi Management Section -->
+          <div class="bg-white rounded-3xl p-4 shadow-sm border border-theme-border space-y-3">
+            <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+              <h2 class="text-xs font-bold text-gray-500">推しメン管理</h2>
+              <button onclick="openOshiModal()" class="text-xs font-bold bg-theme-accent text-white px-3 py-1 rounded-full shadow-sm">
+                + 追加
+              </button>
+            </div>
+
+            ${sortedOshiList.length > 0 ? `
+              <div class="space-y-2">
+                ${sortedOshiList.map((oshi) => `
+                  <div onclick="openOshiModal('${oshi.id}')" class="p-3 bg-theme-bg rounded-2xl border border-theme-border flex items-center justify-between cursor-pointer active:scale-[0.99] transition-all">
+                    <div class="flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-full bg-theme-sub overflow-hidden flex-shrink-0 border border-theme-border flex items-center justify-center">
+                        ${oshi.icon ? `<img src="${oshi.icon}" class="w-full h-full object-cover" />` : `<i data-lucide="user" class="w-5 h-5 text-gray-300"></i>`}
+                      </div>
+                      <div>
+                        <div class="flex items-center gap-1.5">
+                          <h3 class="text-xs font-bold text-gray-800">${escapeHtml(oshi.name)}</h3>
+                          ${oshi.isPrimary ? `<span class="text-[9px] font-bold text-theme-primary bg-white px-1.5 py-0.2 rounded border border-theme-border">1推し</span>` : ''}
+                        </div>
+                        <div class="flex gap-1 mt-1">
+                          ${(oshi.colors || []).map(c => `<div class="w-2.5 h-2.5 rounded-full border border-gray-200" style="background-color: ${c}"></div>`).join('')}
+                        </div>
+                      </div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300"></i>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <p class="text-xs text-gray-300 text-center py-4">登録されている推しメンはいません</p>
+            `}
+          </div>
+
+          <!-- Account Actions -->
+          <div class="bg-white rounded-3xl p-4 shadow-sm border border-theme-border space-y-2">
+            <button onclick="handleLogout()" class="w-full py-2.5 bg-theme-bg text-gray-600 font-bold text-xs rounded-2xl border border-theme-border flex items-center justify-center gap-1">
+              <i data-lucide="log-out" class="w-3.5 h-3.5"></i> ログアウト
+            </button>
+            <button onclick="confirmClearAllData()" class="w-full py-2.5 bg-red-50 text-red-500 font-bold text-xs rounded-2xl border border-red-100 flex items-center justify-center gap-1">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> アカウントデータを初期化
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function setAppTheme(themeName) {
+      const userData = getUserData();
+      userData.theme = themeName;
+      saveDB();
+      render();
+    }
+
+    function openEditUserNameModal() {
+      const userData = getUserData();
+      const modalHtml = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onclick="closeModal(event)">
+          <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-4" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+              <h3 class="font-bold text-theme-primary text-sm">ユーザー名の変更</h3>
+              <button onclick="closeModalDirect()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form onsubmit="saveUserName(event)" class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">新しい名前</label>
+                <input type="text" id="edit-user-name" required value="${escapeHtml(userData.userName || '')}" placeholder="例: オタク太郎" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+              </div>
+
+              <button type="submit" class="w-full py-2.5 bg-theme-accent text-white font-bold text-xs rounded-2xl shadow-sm">
+                保存
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+      document.getElementById('modal-container').innerHTML = modalHtml;
+      lucide.createIcons();
+    }
+
+    function saveUserName(e) {
+      e.preventDefault();
+      const userData = getUserData();
+      const name = document.getElementById('edit-user-name').value.trim();
+      if (name) {
+        userData.userName = name;
+        saveDB();
+        closeModalDirect();
+        render();
+      }
+    }
+
+    function handleLogout() {
+      currentUserEmail = null;
+      localStorage.removeItem('oshilog_session_email');
+      render();
+    }
+
+    function confirmClearAllData() {
+      if (confirm('本当にこのアカウントのすべてのデータを初期化しますか？')) {
+        const userData = getUserData();
+        db.data[currentUserEmail] = { userName: userData.userName || 'オタク太郎', theme: userData.theme || 'pink', oshiList: [], meguriList: [], eventList: [], photoNote: '' };
+        saveDB();
+        render();
+      }
+    }
+
+    // --- MODALS & INTERACTION ---
+
+    // 1. OSHI MODAL WITH 1-OSHI TOGGLE & CROPPER
+    let selectedOshiColors = [];
+    let oshiIconBase64 = '';
+    let cropImageObj = null;
+    let cropScale = 1;
+    let cropPosX = 0;
+    let cropPosY = 0;
+
+    function openOshiModal(oshiId = null) {
+      const userData = getUserData();
+      const oshi = oshiId ? userData.oshiList.find(o => o.id === oshiId) : null;
+
+      selectedOshiColors = oshi ? [...oshi.colors] : ['#FFB6D9'];
+      oshiIconBase64 = oshi ? oshi.icon || '' : '';
+
+      const modalHtml = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onclick="closeModal(event)">
+          <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+              <h3 class="font-bold text-theme-primary text-sm">${oshi ? '推しメンの編集' : '推しメン追加'}</h3>
+              <button onclick="closeModalDirect()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form onsubmit="saveOshi(event, '${oshiId || ''}')" class="space-y-3">
+              <div class="text-center">
+                <div class="w-20 h-20 rounded-full bg-theme-sub border-2 border-theme-border overflow-hidden mx-auto flex items-center justify-center relative cursor-pointer shadow-sm">
+                  <img id="oshi-icon-preview" src="${oshiIconBase64 || ''}" class="${oshiIconBase64 ? '' : 'hidden'} w-full h-full object-cover" />
+                  <div id="oshi-icon-placeholder" class="${oshiIconBase64 ? 'hidden' : ''} text-theme-primary flex flex-col items-center">
+                    <i data-lucide="camera" class="w-6 h-6"></i>
+                    <span class="text-[9px] mt-0.5 font-bold">写真を選択</span>
+                  </div>
+                  <input type="file" accept="image/*" onchange="initImageCropModal(event)" class="absolute inset-0 opacity-0 cursor-pointer" />
+                </div>
+                ${oshiIconBase64 ? `<button type="button" onclick="openCropAdjusterModal()" class="text-[10px] font-bold text-theme-primary mt-1">位置調整・ズーム</button>` : ''}
+              </div>
+
+              <!-- 1-Oshi Toggle Control -->
+              <div class="p-3 bg-theme-sub rounded-2xl border border-theme-border flex items-center justify-between">
+                <div>
+                  <label class="text-xs font-bold text-gray-700 block">1推しに設定</label>
+                  <span class="text-[10px] text-gray-400">一覧の最優先トップに表示されます</span>
+                </div>
+                <input type="checkbox" id="oshi-is-primary" ${oshi && oshi.isPrimary ? 'checked' : ''} class="w-5 h-5 accent-theme rounded cursor-pointer" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">名前 <span class="text-theme-primary">*</span></label>
+                <input type="text" id="oshi-name" required value="${oshi ? escapeHtml(oshi.name) : ''}" placeholder="例: 山下 美月" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">誕生日</label>
+                <input type="date" id="oshi-birthday" value="${oshi ? oshi.birthday || '' : ''}" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">推し始めた日</label>
+                <input type="date" id="oshi-startdate" value="${oshi ? oshi.startDate || '' : ''}" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">メンバーカラー (最大2色)</label>
+                <div id="color-picker-grid" class="grid grid-cols-6 gap-2 pt-1">
+                  ${PALETTE_COLORS.map(c => `
+                    <button type="button" onclick="toggleOshiColor('${c.code}')" class="w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center shadow-sm" style="background-color: ${c.code}; border-color: ${selectedOshiColors.includes(c.code) ? '#18181B' : (c.code === '#FFFFFF' ? '#E2E8F0' : 'transparent')}">
+                      ${selectedOshiColors.includes(c.code) ? `<i data-lucide="check" class="w-3.5 h-3.5 ${['#FFE58A', '#A8DFA8', '#AEE7F8', '#FFB6D9', '#FFFFFF'].includes(c.code) ? 'text-gray-700' : 'text-white'} stroke-[3]"></i>` : ''}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div class="flex gap-2 pt-2">
+                ${oshi ? `
+                  <button type="button" onclick="deleteOshi('${oshi.id}')" class="py-2.5 px-4 bg-red-50 text-red-500 font-bold text-xs rounded-2xl border border-red-100">
+                    削除
+                  </button>
+                ` : ''}
+                <button type="submit" class="flex-1 py-2.5 bg-theme-accent text-white font-bold text-xs rounded-2xl shadow-sm">
+                  保存
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-container').innerHTML = modalHtml;
+      lucide.createIcons();
+    }
+
+    function toggleOshiColor(colorCode) {
+      if (selectedOshiColors.includes(colorCode)) {
+        if (selectedOshiColors.length > 1) {
+          selectedOshiColors = selectedOshiColors.filter(c => c !== colorCode);
+        }
+      } else {
+        if (selectedOshiColors.length >= 2) {
+          selectedOshiColors.shift();
+        }
+        selectedOshiColors.push(colorCode);
+      }
+      const grid = document.getElementById('color-picker-grid');
+      if (grid) {
+        grid.innerHTML = PALETTE_COLORS.map(c => `
+          <button type="button" onclick="toggleOshiColor('${c.code}')" class="w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center shadow-sm" style="background-color: ${c.code}; border-color: ${selectedOshiColors.includes(c.code) ? '#18181B' : (c.code === '#FFFFFF' ? '#E2E8F0' : 'transparent')}">
+            ${selectedOshiColors.includes(c.code) ? `<i data-lucide="check" class="w-3.5 h-3.5 ${['#FFE58A', '#A8DFA8', '#AEE7F8', '#FFB6D9', '#FFFFFF'].includes(c.code) ? 'text-gray-700' : 'text-white'} stroke-[3]"></i>` : ''}
+          </button>
+        `).join('');
+        lucide.createIcons();
+      }
+    }
+
+    function initImageCropModal(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const img = new Image();
+        img.onload = function() {
+          cropImageObj = img;
+          const canvasDim = 200;
+          const minDim = Math.min(img.width, img.height);
+          cropScale = canvasDim / minDim;
+
+          cropPosX = 0;
+          cropPosY = 0;
+          openCropAdjusterModal();
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function openCropAdjusterModal() {
+      if (!cropImageObj) return;
+
+      const subModal = document.createElement('div');
+      subModal.id = 'crop-modal';
+      subModal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop';
+      subModal.innerHTML = `
+        <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-4" onclick="event.stopPropagation()">
+          <h3 class="font-bold text-theme-primary text-sm text-center">画像の位置・拡大縮小の調整</h3>
+          
+          <div class="relative w-48 h-48 mx-auto border-2 border-theme-primary rounded-full overflow-hidden bg-gray-100 cursor-move" id="crop-canvas-container">
+            <canvas id="crop-canvas" width="200" height="200" class="w-full h-full"></canvas>
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-[11px] font-bold text-gray-500">拡大・縮小</label>
+            <input type="range" min="0.2" max="3" step="0.05" value="${cropScale}" id="crop-zoom-slider" oninput="updateCropZoom(this.value)" class="w-full accent-theme" />
+          </div>
+
+          <p class="text-[10px] text-gray-400 text-center">ドラッグで顔の位置などを枠の中央に合わせてください</p>
+
+          <div class="flex gap-2">
+            <button onclick="closeCropModal()" class="flex-1 py-2 bg-gray-100 text-gray-600 font-bold text-xs rounded-2xl">キャンセル</button>
+            <button onclick="applyCrop()" class="flex-1 py-2 bg-theme-accent text-white font-bold text-xs rounded-2xl">決定</button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-container').appendChild(subModal);
+      drawCropCanvas();
+      setupCropEvents();
+    }
+
+    function drawCropCanvas() {
+      const canvas = document.getElementById('crop-canvas');
+      if (!canvas || !cropImageObj) return;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const w = cropImageObj.width * cropScale;
+      const h = cropImageObj.height * cropScale;
+      const x = (canvas.width - w) / 2 + cropPosX;
+      const y = (canvas.height - h) / 2 + cropPosY;
+
+      ctx.drawImage(cropImageObj, x, y, w, h);
+    }
+
+    function updateCropZoom(val) {
+      cropScale = parseFloat(val);
+      drawCropCanvas();
+    }
+
+    let isDraggingCrop = false;
+    let startX = 0, startY = 0;
+
+    function setupCropEvents() {
+      const container = document.getElementById('crop-canvas-container');
+      if (!container) return;
+
+      const handleStart = (e) => {
+        isDraggingCrop = true;
+        const pt = e.touches ? e.touches[0] : e;
+        startX = pt.clientX - cropPosX;
+        startY = pt.clientY - cropPosY;
+      };
+
+      const handleMove = (e) => {
+        if (!isDraggingCrop) return;
+        const pt = e.touches ? e.touches[0] : e;
+        cropPosX = pt.clientX - startX;
+        cropPosY = pt.clientY - startY;
+        drawCropCanvas();
+      };
+
+      const handleEnd = () => { isDraggingCrop = false; };
+
+      container.addEventListener('mousedown', handleStart);
+      container.addEventListener('mousemove', handleMove);
+      window.addEventListener('mouseup', handleEnd);
+
+      container.addEventListener('touchstart', handleStart);
+      container.addEventListener('touchmove', handleMove);
+      window.addEventListener('touchend', handleEnd);
+    }
+
+    function applyCrop() {
+      const canvas = document.getElementById('crop-canvas');
+      if (canvas) {
+        oshiIconBase64 = canvas.toDataURL('image/png');
+        const img = document.getElementById('oshi-icon-preview');
+        const placeholder = document.getElementById('oshi-icon-placeholder');
+        if (img) {
+          img.src = oshiIconBase64;
+          img.classList.remove('hidden');
+        }
+        if (placeholder) placeholder.classList.add('hidden');
+      }
+      closeCropModal();
+    }
+
+    function closeCropModal() {
+      const el = document.getElementById('crop-modal');
+      if (el) el.remove();
+    }
+
+    function saveOshi(e, oshiId) {
+      e.preventDefault();
+      const userData = getUserData();
+      const name = document.getElementById('oshi-name').value.trim();
+      const birthday = document.getElementById('oshi-birthday').value;
+      const startDate = document.getElementById('oshi-startdate').value;
+      const isPrimary = document.getElementById('oshi-is-primary').checked;
+
+      if (!name) return;
+
+      // Ensure only one member has isPrimary=true if checked
+      if (isPrimary) {
+        userData.oshiList.forEach(o => { o.isPrimary = false; });
+      }
+
+      if (oshiId) {
+        const idx = userData.oshiList.findIndex(o => o.id === oshiId);
+        if (idx !== -1) {
+          userData.oshiList[idx] = {
+            ...userData.oshiList[idx],
+            name, birthday, startDate, isPrimary,
+            colors: selectedOshiColors,
+            icon: oshiIconBase64
+          };
+        }
+      } else {
+        userData.oshiList.push({
+          id: 'oshi_' + Date.now(),
+          name, birthday, startDate, isPrimary,
+          colors: selectedOshiColors,
+          icon: oshiIconBase64
+        });
+      }
+
+      saveDB();
+      closeModalDirect();
+      render();
+    }
+
+    function deleteOshi(oshiId) {
+      if (confirm('この推しメンを削除しますか？')) {
+        const userData = getUserData();
+        userData.oshiList = userData.oshiList.filter(o => o.id !== oshiId);
+        saveDB();
+        closeModalDirect();
+        render();
+      }
+    }
+
+    // 2. MEGURI CREATE / EDIT MODAL
+    let customMemberIconBase64 = '';
+
+    function openMeguriCreateModal(meguriId = null) {
+      const userData = getUserData();
+      const meguri = meguriId ? userData.meguriList.find(m => m.id === meguriId) : null;
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const oshiNames = (userData.oshiList || []).map(o => o.name);
+      customMemberIconBase64 = meguri ? meguri.customIcon || '' : '';
+
+      const isOther = meguri && !oshiNames.includes(meguri.member);
+
+      const modalHtml = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onclick="closeModal(event)">
+          <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+              <h3 class="font-bold text-theme-primary text-sm">${meguri ? 'ミーグリ記録の編集' : 'ミーグリ記録の追加'}</h3>
+              <button onclick="closeModalDirect()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form onsubmit="saveMeguri(event, '${meguriId || ''}')" class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">タイトル</label>
+                <input type="text" id="meguri-title" required value="${meguri ? escapeHtml(meguri.title || '') : ''}" placeholder="例: 7月12日 初めてのミーグリ" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">日付</label>
+                <input type="date" id="meguri-date" required value="${meguri ? meguri.date : todayStr}" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-bold text-gray-500 mb-1">部 (数字のみ)</label>
+                  <div class="relative flex items-center">
+                    <input type="number" id="meguri-part" value="${meguri ? escapeHtml(meguri.part || '') : ''}" placeholder="3" min="1" max="20" class="w-full pl-4 pr-8 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+                    <span class="absolute right-3 text-xs text-gray-400 font-bold">部</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-gray-500 mb-1">枚数 (数字のみ)</label>
+                  <div class="relative flex items-center">
+                    <input type="number" id="meguri-count" value="${meguri ? escapeHtml(meguri.count || '') : ''}" placeholder="5" min="1" max="100" class="w-full pl-4 pr-8 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+                    <span class="absolute right-3 text-xs text-gray-400 font-bold">枚</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">メンバー選択</label>
+                <select id="meguri-member-select" onchange="toggleCustomMemberInput(this.value)" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary mb-2">
+                  ${oshiNames.map(name => `<option value="${escapeHtml(name)}" ${meguri && meguri.member === name ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}
+                  <option value="__other__" ${isOther ? 'selected' : ''}>その他のメンバー (手入力)</option>
+                </select>
+
+                <div id="custom-member-block" class="${isOther ? '' : 'hidden'} space-y-2 pt-1">
+                  <input type="text" id="meguri-member-custom" value="${isOther ? escapeHtml(meguri.member) : ''}" placeholder="メンバー名を入力" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+                  
+                  <div class="flex items-center gap-3 bg-theme-sub p-2.5 rounded-2xl border border-theme-border">
+                    <div class="w-10 h-10 rounded-full bg-white border border-gray-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                      <img id="custom-icon-preview" src="${customMemberIconBase64 || ''}" class="${customMemberIconBase64 ? '' : 'hidden'} w-full h-full object-cover" />
+                      <i id="custom-icon-placeholder" data-lucide="user" class="${customMemberIconBase64 ? 'hidden' : ''} w-5 h-5 text-gray-300"></i>
+                    </div>
+                    <div class="flex-1">
+                      <span class="block text-[11px] font-bold text-gray-600">会話用アイコン画像</span>
+                      <label class="text-[10px] text-theme-primary font-bold cursor-pointer underline">
+                        画像を選択
+                        <input type="file" accept="image/*" onchange="handleCustomMemberIconUpload(event)" class="hidden" />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="w-full py-2.5 bg-theme-accent text-white font-bold text-xs rounded-2xl shadow-sm mt-2">
+                保存
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-container').innerHTML = modalHtml;
+      lucide.createIcons();
+    }
+
+    function toggleCustomMemberInput(val) {
+      const block = document.getElementById('custom-member-block');
+      if (val === '__other__') {
+        block.classList.remove('hidden');
+      } else {
+        block.classList.add('hidden');
+      }
+    }
+
+    function handleCustomMemberIconUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        customMemberIconBase64 = evt.target.result;
+        const img = document.getElementById('custom-icon-preview');
+        const placeholder = document.getElementById('custom-icon-placeholder');
+        if (img) {
+          img.src = customMemberIconBase64;
+          img.classList.remove('hidden');
+        }
+        if (placeholder) placeholder.classList.add('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function saveMeguri(e, meguriId) {
+      e.preventDefault();
+      const userData = getUserData();
+      const title = document.getElementById('meguri-title').value.trim();
+      const date = document.getElementById('meguri-date').value;
+      const part = document.getElementById('meguri-part').value.trim();
+      const count = document.getElementById('meguri-count').value.trim();
+
+      const memberSelect = document.getElementById('meguri-member-select').value;
+      const memberCustom = document.getElementById('meguri-member-custom').value.trim();
+      const member = memberSelect === '__other__' ? memberCustom : memberSelect;
+
+      if (!title || !member) return;
+
+      if (meguriId) {
+        const idx = userData.meguriList.findIndex(m => m.id === meguriId);
+        if (idx !== -1) {
+          userData.meguriList[idx].title = title;
+          userData.meguriList[idx].date = date;
+          userData.meguriList[idx].member = member;
+          userData.meguriList[idx].part = part;
+          userData.meguriList[idx].count = count;
+          if (memberSelect === '__other__') {
+            userData.meguriList[idx].customIcon = customMemberIconBase64;
+          }
+        }
+      } else {
+        userData.meguriList.push({
+          id: 'meguri_' + Date.now(),
+          title, date, member, part, count,
+          customIcon: memberSelect === '__other__' ? customMemberIconBase64 : '',
+          chats: []
+        });
+      }
+
+      saveDB();
+      closeModalDirect();
+      render();
+    }
+
+    function deleteMeguri(meguriId) {
+      if (confirm('このミーグリ記録を削除しますか？')) {
+        const userData = getUserData();
+        userData.meguriList = userData.meguriList.filter(m => m.id !== meguriId);
+        saveDB();
+        activeMeguriDetailId = null;
+        render();
+      }
+    }
+
+    function addChatMessage(e, meguriId) {
+      e.preventDefault();
+      const userData = getUserData();
+      const meguri = userData.meguriList.find(m => m.id === meguriId);
+      if (!meguri) return;
+
+      const input = document.getElementById('detail-chat-input');
+      const text = input.value.trim();
+      const radios = document.getElementsByName('detail-sender');
+      let sender = 'oshi';
+      for (const r of radios) { if (r.checked) sender = r.value; }
+
+      if (!text) return;
+
+      if (!meguri.chats) meguri.chats = [];
+      meguri.chats.push({ sender, text });
+      saveDB();
+      activeChatMenuIndex = null;
+      render();
+    }
+
+    // 3. EVENT CREATE / EDIT MODAL
+    function openEventCreateModal(eventId = null) {
+      const userData = getUserData();
+      const evt = eventId ? userData.eventList.find(e => e.id === eventId) : null;
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const modalHtml = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop" onclick="closeModal(event)">
+          <div class="bg-white w-full max-w-sm rounded-3xl p-5 shadow-lg border border-theme-border space-y-4" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between pb-2 border-b border-theme-border">
+              <h3 class="font-bold text-theme-primary text-sm">${evt ? 'イベント記録の編集' : 'イベント記録の追加'}</h3>
+              <button onclick="closeModalDirect()" class="text-gray-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form onsubmit="saveEvent(event, '${eventId || ''}')" class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">イベント名</label>
+                <input type="text" id="event-title" required value="${evt ? escapeHtml(evt.title) : ''}" placeholder="例: 全国ツアー 幕張公演" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">日付</label>
+                <input type="date" id="event-date" required value="${evt ? evt.date : todayStr}" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 mb-1">メモ</label>
+                <textarea id="event-memo" rows="3" placeholder="座席番号や感想など" class="w-full px-4 py-2.5 rounded-2xl bg-theme-bg border border-theme-border text-xs focus:outline-none focus:border-theme-primary">${evt ? escapeHtml(evt.memo || '') : ''}</textarea>
+              </div>
+
+              <button type="submit" class="w-full py-2.5 bg-theme-accent text-white font-bold text-xs rounded-2xl shadow-sm mt-2">
+                保存
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-container').innerHTML = modalHtml;
+      lucide.createIcons();
+    }
+
+    function saveEvent(e, eventId) {
+      e.preventDefault();
+      const userData = getUserData();
+      const title = document.getElementById('event-title').value.trim();
+      const date = document.getElementById('event-date').value;
+      const memo = document.getElementById('event-memo').value.trim();
+
+      if (!title) return;
+
+      if (eventId) {
+        const idx = userData.eventList.findIndex(ev => ev.id === eventId);
+        if (idx !== -1) {
+          userData.eventList[idx] = { id: eventId, date, title, memo };
+        }
+      } else {
+        userData.eventList.push({
+          id: 'evt_' + Date.now(),
+          date, title, memo
+        });
+      }
+
+      saveDB();
+      closeModalDirect();
+      render();
+    }
+
+    function deleteEvent(eventId) {
+      if (confirm('このイベント記録を削除しますか？')) {
+        const userData = getUserData();
+        userData.eventList = userData.eventList.filter(e => e.id !== eventId);
+        saveDB();
+        activeEventDetailId = null;
+        render();
+      }
+    }
+
+    function closeModal(e) {
+      if (e.target.classList.contains('modal-backdrop')) {
+        closeModalDirect();
+      }
+    }
+    function closeModalDirect() {
+      document.getElementById('modal-container').innerHTML = '';
+      render();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Init App
+    render();
+  </script>
+</body>
+</html>
+
 
